@@ -30,10 +30,11 @@
 
 ### IRB  Application
 Training and evaluation of LfD requires working with human-subjects. If you want to publish with the data you collect during this project, you must receive Internal Review Board (IRB) approval. Each group is encouraged to submit one application. The IRB application is ungraded and only required for students  wishing  to  disseminate  the  results  of  their  course  projects  in  the  broader  academic  community  (e.g., a workshop, conference, or journal paper).
+
 - Teams who submit an IRB application will receive +1 on their final grade
-- Teams who get approval for their application will get an additional +1 (total of +2) on their final grade
-Please note: Dr. Gombolay is required to certify any IRB application, and he reserves the right to reject an application if it proposes unethical experimentation or is otherwise 
-deficient. 
+- Teams who get approval for their application will get an additional +1 (total of +2) on their final grade \
+
+**Please note:** Dr. Gombolay is required to certify any IRB application, and he reserves the right to reject an application if it proposes unethical experimentation or is otherwise deficient 
 
 ## Project Update
 1-page summary, 10-minute in-class presentation detailing the progress to date on executing the project proposal
