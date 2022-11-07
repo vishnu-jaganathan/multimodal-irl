@@ -1,10 +1,10 @@
 # IRL
 
 ## Setup
-This repository uses OpenAI [Gymnasium](https://github.com/Farama-Foundation/Gymnasium)
-1. Install requirements
+This repository uses [OpenAI Gymnasium](https://github.com/Farama-Foundation/Gymnasium)
+1. Install requirements \\
 `pip install -r requirements.txt`
-2. Download ROMS (**TODO**)
+2. Download ROMS (**TODO**) \\
 `AutoROM`
 
 ## Project Links
@@ -40,7 +40,7 @@ This repository uses OpenAI [Gymnasium](https://github.com/Farama-Foundation/Gym
 - How long will it take?
 - What are the mid-term and final “exams” to check for success?
 
-## IRB  Application
+### IRB  Application
 Training and evaluation of LfD requires working with human-subjects. If you want to publish with the data you collect during this project, you must receive Internal Review Board (IRB) approval. Each group is encouraged to submit one application. The IRB application is ungraded and only required for students  wishing  to  disseminate  the  results  of  their  course  projects  in  the  broader  academic  community  (e.g., a workshop, conference, or journal paper).
 
 - Teams who submit an IRB application will receive +1 on their final grade
