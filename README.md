@@ -1,5 +1,12 @@
 # IRL
 
+## Setup
+This repository uses OpenAI [Gymnasium](https://github.com/Farama-Foundation/Gymnasium)
+1. Install requirements
+`pip install -r requirements.txt`
+2. Download ROMS (**TODO**)
+`AutoROM`
+
 ## Project Links
 [Google Drive](https://drive.google.com/drive/folders/1LFSak7hevEJbbv83WpMDbrkkh1LFUEiS?usp=sharing) \
 [Overleaf (TBD)]() \
@@ -14,7 +21,7 @@
     - If it is not a successful improvement on prior work, show that you tried three unique methods and that all of them did not work
     - In both cases, develop insights into why the method was successful or unsuccessful
 
-## Project Proposal Requirements
+## Project Proposal (10/21)
 2-page proposal
 - Project motivation
 - Description
@@ -41,12 +48,12 @@ Training and evaluation of LfD requires working with human-subjects. If you want
 
 **Please note:** Dr. Gombolay is required to certify any IRB application, and he reserves the right to reject an application if it proposes unethical experimentation or is otherwise deficient 
 
-## Project Update
+## Project Update (11/18)
 1-page summary, 10-minute in-class presentation detailing the progress to date on executing the project proposal
 - Presenters’ peers will provide feedback
 - The final project presentation grade will be influenced by how well students incorporate helpful, reasonable feedback into their projects
 
-## Project Presentation
+## Project Presentation (12/13 @ 8AM)
 8-page conference-style paper, 10-minute in-class presentation detailing students’ contributions for their research project
 - Abstract
 - Introduction
