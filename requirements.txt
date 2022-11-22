@@ -1,3 +1,9 @@
-gymnasium
-gymnasium[atari]
-gymnasium[accept-rom-license]
+gym
+gym[atari]
+gym[accept-rom-license]
+gym[classic_control]
+gym[other]
+torch
+torchvision
+torchaudio
+pytorch_lightning

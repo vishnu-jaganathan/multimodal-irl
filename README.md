@@ -4,8 +4,6 @@
 This repository uses [OpenAI Gymnasium](https://github.com/Farama-Foundation/Gymnasium)
 1. Install requirements \
 `pip install -r requirements.txt`
-2. Download ROMS (**TODO**) \
-`AutoROM`
 
 ## Project Links
 [Google Drive](https://drive.google.com/drive/folders/1LFSak7hevEJbbv83WpMDbrkkh1LFUEiS?usp=sharing) \
