@@ -8,7 +8,6 @@ from torch.utils.data import DataLoader
 class LinearNN(nn.Module):
     def __init__(self, input_dim, hidden_dims, output_dim):
         super(LinearNN, self).__init__()
-        self.flatten = nn.Flatten()
 
         self.weights = nn.Sequential()
         if len(hidden_dims):
@@ -21,7 +20,6 @@ class LinearNN(nn.Module):
                     self.weights.append(nn.Linear(hidden_dims[i-1],hidden_dims[i]))
 
     def forward(self, x):
-        x = self.flatten(x)
         reward = self.weights(x)
         return reward
 

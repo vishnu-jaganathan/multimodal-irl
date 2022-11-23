@@ -92,7 +92,7 @@ def main():
         
         atari.env.reset()
         done = False
-        features = np.zeros(atari.num_features)
+        features = torch.zeros(atari.num_features)
         trajectory = []
         
         t_start = time()

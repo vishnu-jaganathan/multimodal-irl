@@ -6,7 +6,7 @@ from pygame.locals import *
 import sys
 
 class AtariEnv:
-    def __init__(self, game="BattleZone-v5", render="rgb_array",obs="ram"):
+    def __init__(self, game="BattleZone-v5", render="human",obs="ram"):
         self.env = gym.make('ALE/'+game, render_mode=render, obs_type=obs)
         self.obs = self.env.observation_space
         self.action = self.env.action_space
@@ -16,7 +16,7 @@ class AtariEnv:
     
     def choose_action(self, features, model):
         action_rewards = model(features)
-        return np.argmax(action_rewards)
+        return torch.argmax(action_rewards)
         
     
 
@@ -26,13 +26,8 @@ def main():
     episode_reward = 0
     for i in range(1000):
         action = atari.env.action_space.sample()
-        observation, reward, terminated, truncated, info = atari.env.step(action)
-        print(torch.Tensor(list(observation) + [3]))
-        print(torch.Tensor(list(observation) + [3]).shape)
-        print(torch.Tensor(list(observation) + [3])[3])
-        
+        observation, reward, terminated, truncated, info = atari.env.step(action)        
 
-        break
         if i%50 == 0:
             print("-------------------- Iteration " + str(i) + " --------------------")
             print("Observation:\n", observation)
