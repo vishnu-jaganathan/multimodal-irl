@@ -51,6 +51,24 @@ def keydown(key):
     while keyboard.is_pressed(key):
         pass
 
+ACTIONS = { 0: "NOOP",
+    1: "FIRE",
+    2: "UP",
+    3: "RIGHT",
+    4: "LEFT",
+    5: "DOWN",
+    6: "UPRIGHT",
+    7: "UPLEFT",
+    8: "DOWNRIGHT",
+    9: "DOWNLEFT",
+    10: "UPFIRE",
+    11: "RIGHTFIRE",
+    12: "LEFTFIRE",
+    13: "DOWNFIRE",
+    14: "UPRIGHTFIRE",
+    15: "UPLEFTFIRE",
+    16: "DOWNRIGHTFIRE",
+    17: "DOWNLEFTFIRE" }
 
 def key_tracker(key_queue):
     while True:
@@ -67,13 +85,13 @@ def main():
     key_process = Process(target=key_tracker, args=(key_queue,))
     key_process.start()
 
-    atari = AtariEnv(game="BattleZone-v5")
+    atari = AtariEnv(game="Bowling-v5")
 
     # NN Hyperparameters
     hidden_dims = [16,16]
-    input_dim = atari.num_features  # number of input features where features are the observations
+    input_dim = atari.num_features + 3  # number of input features where features are the observations
     output_dim = atari.num_actions  # reward for each action
-    alpha = 1e-2
+    alpha = 1e-5
 
     # NN
     # input: features
@@ -92,7 +110,7 @@ def main():
         
         atari.env.reset()
         done = False
-        features = torch.zeros(atari.num_features)
+        features = torch.zeros(input_dim)
         trajectory = []
         
         t_start = time()
@@ -106,47 +124,59 @@ def main():
             x = torch.Tensor(list(observation) + [action] + [t_state_start-t_start, t_state_end-t_start])
             done = terminated or truncated
 
+            # for each feedback received
             while key_queue.qsize():
                 y, t_feed = key_queue.get()
                 t_feed -= t_start
                 if y == "TERMINATE":
                     done = True
-                    key_process.close()
+                    key_process.terminate()
                     key_process.join()
-                    break
+                    return
                 
                 # assign feedback y to all states x in the interval [t_f-4, t_f-0.2]
                 i = len(trajectory)-1
+                print("Trajectory Length:", i)
                 while i >= 0:
-                    if trajectory[i][2] <= t_feed-4 <= trajectory[i][3] or trajectory[i][2] <= t_feed-0.2 <= trajectory[i][3]:
-                        if trajectory[i][2] <= t_feed-4 <= trajectory[i][3] and trajectory[i][2] <= t_feed-0.2 <= trajectory[i][3]:
-                            weight = 1
-                        elif trajectory[i][2] <= t_feed-4 <= trajectory[i][3]:
-                            weight = (trajectory[i][3] - (t_feed-4)) / 3.8
-                        elif trajectory[i][2] <= t_feed-0.2 <= trajectory[i][3]:
-                            weight = ((t_feed-0.2) - trajectory[i][3]) / 3.8
-                        
-                        reward = model(trajectory[i])
-                        print(type(reward))
+                    # t_upper = t_feed - trajectory[i][-1]
+                    # t_lower = t_feed - trajectory[i][-2]
+                    t_feed_start = t_feed - 4
+                    t_feed_end = t_feed - 0.2
+                    
+                    t_i_state_start = trajectory[i][-2]
+                    t_i_state_end = trajectory[i][-1]
 
+                    if t_i_state_start <= t_i_state_end:
+                        if (t_feed_start <= t_i_state_start <= t_feed_end) or (t_feed_start <= t_i_state_end <= t_feed_end):
+                            # intervals overlap
+                            t_overlap = min(t_i_state_end,t_feed_end) - max(t_i_state_start,t_feed_start)
+                            weight = t_overlap / (4-0.2)
 
-                        target = torch.clone(reward)
-                        target[action] = y
-                        loss = weight*(target - reward).pow(2)
-                        print(loss)
-                        loss.backward()
+                            reward = model(trajectory[i])
+                            loss = weight*(y - reward[action]).pow(2)
+                            
+                            model.zero_grad()
+                            loss.backward()
+                            optimizer.step()
+                            print("action:", float(action), ": ", ACTIONS[action])
+                            print("reward:", reward.tolist())
+                            print("reward[action]:", float(reward[float(action)]))
+                            print("feedback:", float(y))
+                            print("loss:", float(loss))
 
-                        feedback_buffer.append((trajectory[i], y, weight))
+                            feedback_buffer.append((trajectory[i], y, weight))
+                    else: break
 
                     i -= 1
 
-                trajectory.append(x)
+            trajectory.append(x)
+            t_state_start = t_state_end
+            features = x
 
-
-        atari.env.step(action)
-    pickle.dump(model, open('trained_agent.pkl', 'wb'))
-
-        
+    pickle.dump(model, open('atari/models/trained_agent.pkl', 'wb'))
+    key_process.terminate()
+    key_process.join()
+    
         
 
 if __name__ == "__main__":

@@ -14,9 +14,14 @@ class AtariEnv:
         self.num_features = self.obs.shape[0]
         self.num_actions = self.action.n
     
-    def choose_action(self, features, model):
+    def choose_action(self, features, model, debug=False):
         action_rewards = model(features)
-        return torch.argmax(action_rewards)
+        action = torch.argmax(action_rewards)
+
+        if debug:
+            print("action_rewards:", action_rewards.tolist())
+            print("action:", float(action))
+        return action
         
     
 
