@@ -24,6 +24,8 @@ class LinearNN(nn.Module):
         return reward
 
 
+
+# Autoencoder (DEPRECATED)
 # https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/tutorial9/AE_CIFAR10.html
 class Encoder(nn.Module):
     def __init__(self):
