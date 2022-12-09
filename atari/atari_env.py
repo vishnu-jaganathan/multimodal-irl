@@ -4,9 +4,10 @@ import gym
 import pygame
 from pygame.locals import *
 import sys
+from atariari.benchmark.wrapper import AtariARIWrapper
 
 class AtariEnv:
-    def __init__(self, game="BattleZone-v5", render="human",obs="ram"):
+    def __init__(self, game="BattleZone-v5", render="human", obs="ram"):
         self.env = gym.make('ALE/'+game, render_mode=render, obs_type=obs)  # atari environment
         self.obs = self.env.observation_space                               # observations
         self.action = self.env.action_space                                 # actions
@@ -32,7 +33,7 @@ class AtariEnv:
             print("action_rewards:", action_rewards.tolist())
             print("action:", float(action))
 
-        return action
+        return int(action)
 
 
 
@@ -46,9 +47,25 @@ def main():
     # take actions in the game where each iteration in the loop represents one action
     episode_reward = 0  # total reward for the episode
     for i in range(1000):
+        test_sequence = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                        5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,
+                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,]
+        for action in test_sequence:
+            observation, reward, terminated, truncated, info = atari.env.step(action)
+        return
         # take a random action
         action = atari.env.action_space.sample()
-        observation, reward, terminated, truncated, info = atari.env.step(action)        
+        action = 1
+        observation, reward, terminated, truncated, info = atari.env.step(action)
 
         # print information about the game
         if i%50 == 0:

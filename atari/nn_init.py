@@ -10,14 +10,16 @@ class LinearNN(nn.Module):
         super(LinearNN, self).__init__()
 
         self.weights = nn.Sequential()
-        if len(hidden_dims):
+        if len(hidden_dims) > 0:
             for i in range(len(hidden_dims)+1):
                 if i==0:
                     self.weights.append(nn.Linear(input_dim, hidden_dims[i]))
                 elif i==len(hidden_dims):
-                    self.weights.append(nn.Linear(hidden_dims[i-1],output_dim))
+                    self.weights.append(nn.Linear(hidden_dims[i-1], output_dim))
                 else:
-                    self.weights.append(nn.Linear(hidden_dims[i-1],hidden_dims[i]))
+                    self.weights.append(nn.Linear(hidden_dims[i-1], hidden_dims[i]))
+        else:
+            self.weights.append(nn.Linear(input_dim, output_dim))
 
     def forward(self, x):
         reward = self.weights(x)

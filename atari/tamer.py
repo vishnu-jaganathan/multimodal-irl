@@ -3,8 +3,9 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import pickle
+import json
 import sys
-from time import time,sleep
+from time import time
 
 from atari_env import AtariEnv
 from nn_init import LinearNN
@@ -103,18 +104,26 @@ def main():
     global ACTIONS
     global DEBUG
 
-    key_queue = Queue() # queue containing y based on key presses (y from Deep TAMER paper where y = (reward,time))
+    game = "Bowling-v5"
 
-    # start process on another thread that tracks key presses 
-    key_process = Process(target=key_tracker, args=(key_queue,))
-    key_process.start()
+    with open('atari/ram_annotations.json') as f:
+            ram_annotations = json.load(f)
+    feature_indices = []
+    for k in ram_annotations[game.lower().split("-")[0]]:
+        if isinstance(ram_annotations[game.lower().split("-")[0]][k], list):
+            feature_indices += ram_annotations[game.lower().split("-")[0]][k]
+        else:
+            feature_indices.append(ram_annotations[game.lower().split("-")[0]][k])
 
     # instantiate the atari game environment
-    atari = AtariEnv(game="Bowling-v5")
+    atari = AtariEnv(game=game)
+    if game == "Bowling-v5":
+        atari.num_actions = 4
+        ACTIONS[3] = "DOWN"
 
     # NN Hyperparameters
-    hidden_dims = [16,16]               # hidden layers where each value in the list represents the number of nodes in each layer
-    input_dim = atari.num_obs + 1       # input is the features where features=[observations from OpenAI RAM, action]
+    hidden_dims = [16, 16, 16]          # hidden layers where each value in the list represents the number of nodes in each layer
+    input_dim = len(feature_indices)    # input is the features where features=[observations from OpenAI RAM, action]
     output_dim = atari.num_actions      # output is the predicted reward for each action
     alpha = 1e-5                        # learning rate
 
@@ -124,7 +133,6 @@ def main():
     model.zero_grad()
 
     episodes = 5            # number of episodes (i.e. full games) to play
-    feedback_buffer = []    # feedback replay buffer D from the Deep TAMER paper where D = {(x,y,w)} (currently not used)
     kill = False            # boolean indicating whether or not to stop all training
     for e in range(episodes):
         if kill: break                      # stop all episodes
@@ -133,92 +141,55 @@ def main():
         trajectory = []                     # initialize trajectory containing experience {x} (state x from Deep TAMER paper where x = [observations, action, start time, end time])
 
         done = False            # boolean indicating whether or not the game is done
-        t_start = time()        # start time of episode
-        t_state_start = t_start # current state start time
-
+        step_index = 0
+        interval = 1
         while not done:
-            # take an action based on reward model
+            step_index += 1
             action = atari.choose_action(features, model)
             observation, _, terminated, truncated, _ = atari.env.step(action)
+            if DEBUG:
+                print("action:", int(action), ACTIONS[int(action)])
 
             done = terminated or truncated  # whether or not the episode has finished
+
+            # state x from the Deep TAMER paper where x = [observations, action]
+            x = torch.Tensor(np.array(observation)[feature_indices].tolist())
+            print(x)
+
+            # take an action based on reward model
+            if step_index % interval == 0:
+                while True:
+                    key = keyboard.read_key()
+                    if key in {"1","2","3","4","5","6","7","8","9","0","down"}:
+                        break
+                keydown(key)
             
-            t_state_end = time()    # current state end time (and next state start time)
-
-            # state x from the Deep TAMER paper where x = [observations, action, start time, end time]
-            x = torch.Tensor(list(observation) + [action] + [t_state_start-t_start, t_state_end-t_start])
-
-            # remove all feedback y in the queue (y from Deep TAMER paper where y = (reward,time))
-            while key_queue.qsize():
-                h, t_feed = key_queue.get() # h from Deep TAMER paper where h = true reward
-                                            # t_feed = t^f from Deep TAMER paper where t^f = time of feedback
-
-                # stop if commanded to terminate terminate
-                if h == "TERMINATE":
+                # stop if commanded to terminate
+                if KEY_LABEL == "TERMINATE":
                     kill = True
-                    done = True
-                    key_process.terminate()     # kill key tracking process
-                    key_process.join()
                     break
 
-                # feedback time interval [t^f - 4, t^f - 0.2] where t^f = time of feedback
-                t_feed -= t_start
-                t_feed_start = t_feed - 4
-                t_feed_end = t_feed - 0.2
+                # train NN
+                n = len(trajectory)
+                if KEY_LABEL != 0 and n > interval:
+                    for i in range(n-interval,n):
+                        x_i = trajectory[i][0]
+                        reward = model(x_i)                    # forward propagation
+                        loss = (KEY_LABEL - reward[action]).pow(2)  # loss
+                        model.zero_grad()                           # zero gradients
+                        loss.backward()                             # compute gradients
+                        optimizer.step()                            # SGD
+                        # print debug information
+                        if DEBUG:
+                            print("reward:", reward.tolist())
+                            print("reward[action]:", float(reward[int(action)]))
+                            print("feedback:", float(KEY_LABEL))
+                            print("loss:", float(loss))
 
-                # assign feedback y = (reward,time) to all states x in the feedback time interval [t^f - 4, t^f - 0.2] where t^f = time of feedback
-                i = len(trajectory)-1
-                # print debug information
-                if DEBUG:
-                    print("Trajectory Length:", i)
-                # start from most current state in trajectory and loop backwards
-                while i >= 0:
-                    x_i = trajectory[i]
-                    
-                    # time interval that the state occurred
-                    t_i_state_start = x_i[-2]
-                    t_i_state_end = x_i[-1]
+            trajectory.append((x,KEY_LABEL))            # add state x to trajectory where x = [observations, action]
+            features = x               # set features for next state as [observations, action]
 
-                    # if the end of the ith state in the trajectory >= start of the feedback time interval, then it is possible we assign the feedback to the ith state in the trajectory
-                    # otherwise, the ith state in the trajectory is not in the feedback time interval and all states before the ith state are also not in the feedback time interval, so break from the loop
-                    if t_i_state_end >= t_feed_start:
-
-                        # assign the feedback to the ith state in the trajectory if the start or end of the ith state in the trajectory is within the feedback time interval
-                        if (t_feed_start <= t_i_state_start <= t_feed_end) or (t_feed_start <= t_i_state_end <= t_feed_end):
-                            # calculate w from the Deep TAMER paper where w = weight applied to loss function
-                            # assume f_delay has a uniform distribution over the feedback time interval [t^f - 4, t^f - 0.2] where t^f = time of feedback 
-                            t_overlap = min(t_i_state_end,t_feed_end) - max(t_i_state_start,t_feed_start)
-                            weight = t_overlap / (4-0.2)
-
-                            # train NN
-                            reward = model(x_i[:-2])                    # forward propagation
-                            loss = weight*(h - reward[action]).pow(2)   # loss
-                            model.zero_grad()                           # zero gradients
-                            loss.backward()                             # compute gradients
-                            optimizer.step()                            # SGD
-                            # print debug information
-                            if DEBUG:
-                                print("action:", int(action), ACTIONS[int(action)])
-                                print("reward:", reward.tolist())
-                                print("reward[action]:", float(reward[int(action)]))
-                                print("feedback:", float(h))
-                                print("loss:", float(loss))
-
-                            # add (x,y,w) to feedback replay buffer D
-                            feedback_buffer.append((trajectory[i], h, weight))
-
-                    else: break
-
-                    i -= 1  # move backwards through trajectory
-
-            trajectory.append(x)            # add state x to trajectory where x = [observations, action, start time, end time]
-            t_state_start = t_state_end     # set start of next state as end of current state
-            features = x[:-2]               # set features for next state as [observations, action]
-
-    pickle.dump(model, open('atari/models/trained_agent.pkl', 'wb'))    # save model
-    key_process.terminate()                                             # kill key tracking process
-    key_process.join()
-    
+    pickle.dump(model, open('atari/models/trained_agent_vanilla.pkl', 'wb'))    # save model
         
 
 if __name__ == "__main__":
