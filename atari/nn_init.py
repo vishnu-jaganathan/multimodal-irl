@@ -4,6 +4,7 @@ import pytorch_lightning as pl
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from torchsummary import summary
 
 class LinearNN(nn.Module):
     def __init__(self, input_dim, hidden_dims, output_dim):
@@ -27,7 +28,7 @@ class LinearNN(nn.Module):
 
 
 
-# Autoencoder (DEPRECATED)
+# Autoencoder
 # https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/tutorial9/AE_CIFAR10.html
 class Encoder(nn.Module):
     def __init__(self):
@@ -35,25 +36,25 @@ class Encoder(nn.Module):
 
         # Input: 2 x 250 x 160
         self.encoder = nn.Sequential(
-            nn.Conv2d(2, 64, 3, padding=1, stride=2),
+            nn.Conv2d(2, 64, kernel_size=3, padding=1, stride=2),
             nn.ReLU(),
 
             # 64 x 125 x 80
-            nn.Conv2d(64, 64, 3, padding=1, stride=2),
+            nn.Conv2d(64, 64, kernel_size=3, padding=(0,1), stride=2),
             nn.ReLU(),
 
             # 64 x 62 x 40
-            nn.Conv2d(64, 64, 3, padding=1, stride=2),
+            nn.Conv2d(64, 64, kernel_size=3, padding=1, stride=2),
             nn.ReLU(),
 
-            # 64 x 31 x 20
-            nn.Conv2d(64, 1, 3, padding=1, stride=2),
+            # 128 x 31 x 20
+            nn.Conv2d(64, 1, kernel_size=3, padding=(0,1), stride=2),
             nn.ReLU(),
 
             # 1 x 15 x 10
             nn.Flatten(),
         )
-        # Output: 150 x 1
+        # Output: 1 x 150
 
     def forward(self, x):
         return self.encoder(x)
@@ -63,24 +64,30 @@ class Decoder(nn.Module):
     def __init__(self):
         super(Decoder, self).__init__()
         
-        # Input: 150 x 1
+        # Input: 1 x 150
         self.decoder = nn.Sequential(
-            nn.Unflatten(0,(1,15,10)),
+            nn.Unflatten(-1,(15,10)),
 
             # 1 x 15 x 10
-            nn.ConvTranspose2d(1, 64, 3, output_padding=(2,1), padding=1, stride=2),
+            nn.ConvTranspose2d(1, 64, kernel_size=3, output_padding=(0,1), padding=(0,1), stride=2),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, padding=1),
             nn.ReLU(),
 
             # 64 x 31 x 20
-            nn.ConvTranspose2d(1, 64, 3, output_padding=1, padding=1, stride=2),
+            nn.ConvTranspose2d(64, 64, kernel_size=3, output_padding=1, padding=1, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, padding=1),
             nn.ReLU(),
 
             # 64 x 62 x 40
-            nn.ConvTranspose2d(64, 64, 3, output_padding=(2,1), padding=1, stride=2),
+            nn.ConvTranspose2d(64, 64, kernel_size=3, output_padding=(0,1), padding=(0,1), stride=2),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, padding=1),
             nn.ReLU(),
 
             # 64 x 125 x 80
-            nn.ConvTranspose2d(64, 2, 3, output_padding=1, padding=1, stride=2),
+            nn.ConvTranspose2d(64, 2, kernel_size=3, output_padding=1, padding=1, stride=2),
             nn.Tanh(),
         )
 
@@ -135,3 +142,19 @@ class Autoencoder(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         loss = self._get_reconstruction_loss(batch)
         self.log('test_loss', loss)
+
+def main():
+    encoder = Encoder()
+    decoder = Decoder()
+
+    input = torch.randn(2,260,150)
+    print("\n\nInput:", tuple(input.size()), "\n\n")
+    summary(encoder, input_size=(2, 250, 160))
+    encoded_state = encoder(input)
+    print("\n\nEncoded State:", tuple(encoded_state.size()), "\n\n")
+    summary(decoder, input_size=encoded_state.size())
+    decoded_state = decoder(encoded_state)
+    print("\n\nDecoded State:", tuple(decoded_state.size()), "\n\n")
+
+if __name__ == '__main__':
+    main()
