@@ -1,1 +1,3 @@
 *.pyc
+atari/__pycache__/
+atari/data/

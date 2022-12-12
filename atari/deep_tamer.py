@@ -106,14 +106,14 @@ def main():
     
     game = "Bowling-v5"
 
-    with open('atari/ram_annotations.json') as f:
-            ram_annotations = json.load(f)
-    feature_indices = []
-    for k in ram_annotations[game.lower().split("-")[0]]:
-        if isinstance(ram_annotations[game.lower().split("-")[0]][k], list):
-            feature_indices += ram_annotations[game.lower().split("-")[0]][k]
-        else:
-            feature_indices.append(ram_annotations[game.lower().split("-")[0]][k])
+    # with open('atari/ram_annotations.json') as f:
+    #         ram_annotations = json.load(f)
+    # feature_indices = []
+    # for k in ram_annotations[game.lower().split("-")[0]]:
+    #     if isinstance(ram_annotations[game.lower().split("-")[0]][k], list):
+    #         feature_indices += ram_annotations[game.lower().split("-")[0]][k]
+    #     else:
+    #         feature_indices.append(ram_annotations[game.lower().split("-")[0]][k])
 
     key_queue = Queue() # queue containing y based on key presses (y from Deep TAMER paper where y = (reward,time))
 
@@ -122,20 +122,24 @@ def main():
     key_process.start()
 
     # instantiate the atari game environment
-    atari = AtariEnv(game=game)
+    atari = AtariEnv(game=game, obs="grayscale")
     if game == "Bowling-v5":
         atari.num_actions = 4
         ACTIONS[3] = "DOWN"
 
 
     # NN Hyperparameters
-    hidden_dims = [16,16,16]               # hidden layers where each value in the list represents the number of nodes in each layer
-    input_dim = len(feature_indices) + 1  # input is the features where features=[observations from OpenAI RAM, action]
+    hidden_dims = [16,16]               # hidden layers where each value in the list represents the number of nodes in each layer
+    input_dim = atari.num_obs + 1  # input is the features where features = [grayscale, action]
     output_dim = atari.num_actions      # output is the predicted reward for each action
-    alpha = 1e-4                        # learning rate
+    alpha = 1e-7                        # learning rate
 
     # NN
     model = LinearNN(input_dim=input_dim, hidden_dims=hidden_dims, output_dim=output_dim).to(device)
+    for module in model.weights:
+        module.weight.data.fill_(0)
+        module.bias.data.fill_(0)
+        
     optimizer = optim.SGD(model.parameters(), lr=alpha)
     model.zero_grad()
 
@@ -145,25 +149,29 @@ def main():
     for e in range(episodes):
         if kill: break                      # stop all episodes
         atari.env.reset()                   # reset environment
-        features = torch.zeros(input_dim)   # initialize features
+        prev_state = torch.zeros((1,210,160))  # initialize features
+        curr_state = torch.zeros((1,210,160))  # initialize features
+        state = atari.get_state_features(prev_state, curr_state)
+        features = torch.cat((state,torch.ones(1)))
         trajectory = []                     # initialize trajectory containing experience {x} (state x from Deep TAMER paper where x = [observations, action, start time, end time])
 
         done = False            # boolean indicating whether or not the game is done
         t_start = time()        # start time of episode
-        t_state_start = t_start # current state start time
+        t_state_start = 0 # current state start time
 
         while not done:
             # take an action based on reward model
             action = atari.choose_action(features, model)
-            observation, _, terminated, truncated, _ = atari.env.step(action)
+            curr_state, _, terminated, truncated, _ = atari.env.step(action)
 
             done = terminated or truncated  # whether or not the episode has finished
             
-            t_state_end = time()    # current state end time (and next state start time)
+            t_state_end = time() - t_start    # current state end time (and next state start time)
 
             # state x from the Deep TAMER paper where x = [observations, action, start time, end time]
-            x = torch.Tensor(np.array(observation)[feature_indices].tolist() + [action] + [t_state_start-t_start, t_state_end-t_start])
-
+            curr_state = torch.Tensor(curr_state)[None,:,:]
+            state = atari.get_state_features(prev_state, curr_state)
+            x = torch.Tensor(state.tolist() + [action] + [t_state_start, t_state_end])
             # remove all feedback y in the queue (y from Deep TAMER paper where y = (reward,time))
             while key_queue.qsize():
                 h, t_feed = key_queue.get() # h from Deep TAMER paper where h = true reward
@@ -179,7 +187,7 @@ def main():
 
                 # feedback time interval [t^f - 4, t^f - 0.2] where t^f = time of feedback
                 t_feed -= t_start
-                t_feed_start = t_feed - 4
+                t_feed_start = t_feed - 2
                 t_feed_end = t_feed - 0.2
 
                 # assign feedback y = (reward,time) to all states x in the feedback time interval [t^f - 4, t^f - 0.2] where t^f = time of feedback
@@ -229,7 +237,8 @@ def main():
 
             trajectory.append(x)            # add state x to trajectory where x = [observations, action, start time, end time]
             t_state_start = t_state_end     # set start of next state as end of current state
-            features = x[:-2]               # set features for next state as [observations, action]
+            features = x[:-2]               # set features for next state as [observations]
+            prev_state = torch.clone(curr_state)
 
     pickle.dump(model, open('atari/models/trained_agent.pkl', 'wb'))    # save model
     key_process.terminate()                                             # kill key tracking process

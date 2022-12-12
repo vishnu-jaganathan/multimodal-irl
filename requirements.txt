@@ -6,4 +6,6 @@ gym[other]
 torch
 torchvision
 torchaudio
-git+https://github.com/mila-iqia/atari-representation-learning.git
+pytorch-lightning
+tensorboard
+keyboard

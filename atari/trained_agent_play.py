@@ -7,18 +7,18 @@ from atari_env import AtariEnv
 
 def main():
     model = pickle.load(open('atari/models/trained_agent.pkl', 'rb'))
-    game = "Bowling-v5"
-    atari = AtariEnv(game=game)
+    game = "BattleZone-v5"
+    atari = AtariEnv(game=game, obs="grayscale")
 
-    with open('atari/ram_annotations.json') as f:
-        ram_annotations = json.load(f)
-    feature_indices = []
-    for k in ram_annotations[game.lower().split("-")[0]]:
-        if isinstance(ram_annotations[game.lower().split("-")[0]][k], list):
-            feature_indices += ram_annotations[game.lower().split("-")[0]][k]
-        else:
-            feature_indices.append(ram_annotations[game.lower().split("-")[0]][k])
-    input_dim = len(feature_indices) + 1
+    # with open('atari/ram_annotations.json') as f:
+    #     ram_annotations = json.load(f)
+    # feature_indices = []
+    # for k in ram_annotations[game.lower().split("-")[0]]:
+    #     if isinstance(ram_annotations[game.lower().split("-")[0]][k], list):
+    #         feature_indices += ram_annotations[game.lower().split("-")[0]][k]
+    #     else:
+    #         feature_indices.append(ram_annotations[game.lower().split("-")[0]][k])
+    input_dim = atari.num_obs + 1
 
     atari.env.reset()
     features = torch.zeros(input_dim)
