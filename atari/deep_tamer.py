@@ -143,10 +143,13 @@ def main():
     optimizer = optim.SGD(model.parameters(), lr=alpha)
     model.zero_grad()
 
-    episodes = 5            # number of episodes (i.e. full games) to play
+    agent_reward = []
+    steps = []
+    total_steps = 10001
+    curr_step = 0
     feedback_buffer = []    # feedback replay buffer D from the Deep TAMER paper where D = {(x,y,w)} (currently not used)
     kill = False            # boolean indicating whether or not to stop all training
-    for e in range(episodes):
+    while curr_step < total_steps:
         if kill: break                      # stop all episodes
         atari.env.reset()                   # reset environment
         prev_state = torch.zeros((1,210,160))  # initialize features
@@ -162,25 +165,24 @@ def main():
         while not done:
             # take an action based on reward model
             action = atari.choose_action(features, model)
-            prev_action = action
-            if game_state == 2:
-                action = 0
-            observation, _, terminated, truncated, _ = atari.env.step(action)
+            # if game_state == 2:
+            #     action = 0
+            curr_state, _, terminated, truncated, _ = atari.env.step(action)
 
-            if game_state == 0 and action == 1:
-                game_state = 1
-                throw_timer = time()
-            elif game_state == 1 and (action == 2 or action ==3):
-                game_state = 2
-            elif (game_state == 1 or game_state == 2) and time()-throw_timer > 7:
-                game_state = 0
+            # if game_state == 0 and action == 1:
+            #     game_state = 1
+            #     throw_timer = time()
+            # elif game_state == 1 and (action == 2 or action ==3):
+            #     game_state = 2
+            # elif (game_state == 1 or game_state == 2) and time()-throw_timer > 7:
+            #     game_state = 0
 
             done = terminated or truncated  # whether or not the episode has finished
             
             t_state_end = time() - t_start    # current state end time (and next state start time)
 
             # state x from the Deep TAMER paper where x = [observations, action, start time, end time]
-            curr_state = torch.Tensor(curr_state)
+            curr_state = torch.Tensor(curr_state)[None,:,:]
             state = atari.get_state_features(prev_state, curr_state)
             x = torch.Tensor(state.tolist() + [action] + [t_state_start, t_state_end])
             # remove all feedback y in the queue (y from Deep TAMER paper where y = (reward,time))
@@ -252,10 +254,62 @@ def main():
             features = x[:-2]               # set features for next state as [observations]
             prev_state = torch.clone(curr_state)
 
+            # evaluate model
+            if curr_step%500 == 0:
+                print("Evaluating for time " + str(curr_step))
+                agent_reward.append(evaluate(model, game))
+                steps.append(curr_step)
+                print("Done evaluating, continuing training")
+
+            curr_step += 1
+            if curr_step >= total_steps:
+                done = True
+
     pickle.dump(model, open('atari/models/trained_agent.pkl', 'wb'))    # save model
     key_process.terminate()                                             # kill key tracking process
     key_process.join()
     
+def evaluate(model, game):
+    atari = AtariEnv(game=game, render=None, obs="grayscale")
+
+    episodes = 10
+    episode_reward = np.zeros((episodes))
+    kill = False
+    for e in range(episodes):
+        atari.env.reset()
+
+        prev_state = torch.zeros((1,210,160))  # initialize features
+        curr_state = torch.zeros((1,210,160))  # initialize features
+        state = atari.get_state_features(prev_state, curr_state)
+        features = torch.cat((state,torch.ones(1)))
+
+        done = False
+        start_time = time()
+        print("running episode", e)
+        while not done:
+            # take a random action
+            action = atari.choose_action(features, model)
+            action = 1
+            curr_state, reward, terminated, truncated, info = atari.env.step(action)
+            curr_state = torch.Tensor(curr_state)[None,:,:]
+            state = atari.get_state_features(prev_state, curr_state)
+            features = torch.Tensor(state.tolist() + [action])
+
+            # add the reward for taking the action
+            episode_reward[e] += reward
+            
+            # end game
+            done = terminated or truncated
+
+            if time() - start_time > 15:
+                print("     agent did not finish episode")
+                done = True
+                kill = True
+            prev_state = torch.clone(curr_state)
+        
+        if kill: break
+
+    return np.mean(episode_reward)
         
 
 if __name__ == "__main__":
