@@ -133,7 +133,7 @@ def main():
     hidden_dims = [16,16,16]               # hidden layers where each value in the list represents the number of nodes in each layer
     input_dim = len(feature_indices) + 1  # input is the features where features=[observations from OpenAI RAM, action]
     output_dim = atari.num_actions      # output is the predicted reward for each action
-    alpha = 1e-4                        # learning rate
+    alpha = 1e-3                        # learning rate
 
     # NN
     model = LinearNN(input_dim=input_dim, hidden_dims=hidden_dims, output_dim=output_dim).to(device)
@@ -157,26 +157,26 @@ def main():
         t_start = time()        # start time of episode
         t_state_start = t_start # current state start time
 
-        # 0 = ball not thrown
-        # 1 = ball thrown
-        # 2 = trajectory moved
-        game_state = 0
+        # # 0 = ball not thrown
+        # # 1 = ball thrown
+        # # 2 = trajectory moved
+        # game_state = 0
         while not done:
             # take an action based on reward model
             action = atari.choose_action(features, model)
-            if game_state == 1 and action == 1:
-                action = 0
-            elif game_state == 2:
-                action = 0
+            # if game_state == 1 and action == 1:
+            #     action = 0
+            # elif game_state == 2:
+            #     action = 0
             observation, _, terminated, truncated, _ = atari.env.step(action)
 
-            if observation[30] <= 15:
-                game_state = 0
-            elif observation[30] > 15:
-                if game_state == 0:
-                    game_state = 1
-                if action == 2 or action == 3:
-                    game_state = 2
+            # if observation[30] <= 15:
+            #     game_state = 0
+            # elif observation[30] > 15:
+            #     if game_state == 0:
+            #         game_state = 1
+            #     if action == 2 or action == 3:
+            #         game_state = 2
 
             done = terminated or truncated  # whether or not the episode has finished
             
@@ -212,6 +212,7 @@ def main():
                 # start from most current state in trajectory and loop backwards
                 while i >= 0:
                     x_i = trajectory[i]
+                    action_i = int(x_i[-3])
                     
                     # time interval that the state occurred
                     t_i_state_start = x_i[-2]
@@ -230,15 +231,15 @@ def main():
 
                             # train NN
                             reward = model(x_i[:-2])                    # forward propagation
-                            loss = weight*(h - reward[action]).pow(2)   # loss
+                            loss = weight*(h - reward[action_i]).pow(2)   # loss
                             model.zero_grad()                           # zero gradients
                             loss.backward()                             # compute gradients
                             optimizer.step()                            # SGD
                             # print debug information
-                            if DEBUG and action != 0:
-                                print("action:", int(action), ACTIONS[int(action)])
+                            if DEBUG and x_i[-3] != 0:
+                                print("action:", int(action_i), ACTIONS[int(action_i)])
                                 print("reward:", reward.tolist())
-                                print("reward[action]:", float(reward[int(action)]))
+                                print("reward[action]:", float(reward[int(action_i)]))
                                 print("feedback:", float(h))
                                 print("loss:", float(loss))
 
