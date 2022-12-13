@@ -73,9 +73,25 @@ def process_emotions(filename):
 
 	score_comparisons = pd.DataFrame(emotions, columns = ['Human Emotions'])
 	score_comparisons['Emotion Value from the Video'] = emotions_values
-	return score_comparisons
+	return score_comparisons, emotions_values
+
+def extract_score(emotions):
+	emotion_to_idx = {'Angry':0, 'Disgust':1, 'Fear':2, 'Happy':3, 'Sad':4, 'Surprise':5, 'Neutral':6}
+	negative = sum(emotions[0:3]) + emotions[4]
+	positive = emotions[3]
+	if positive > 2 * negative:
+		return 1
+	if negative > 3 * positive:
+		return -1
+	if emotions[emotion_to_idx["Neutral"]] > 0.6: # threshold hyperparameter
+		return 0
+	if abs(1.5 * positive - negative) < 0.1:
+		return 0
+	return 1 if positive > negative else -1 # scoring system subject to change, simple positive negative
 
 name = "output"
 record_video(name)
-scores = process_emotions(name)
-print(scores)
+scores, emotions = process_emotions(name)
+print(scores, emotions)
+score = extract_score(emotions)
+print(score)
