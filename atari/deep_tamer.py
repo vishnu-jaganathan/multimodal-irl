@@ -129,16 +129,16 @@ def main():
 
 
     # NN Hyperparameters
-    hidden_dims = [16,16]               # hidden layers where each value in the list represents the number of nodes in each layer
+    hidden_dims = [16,16,16]               # hidden layers where each value in the list represents the number of nodes in each layer
     input_dim = atari.num_obs + 1  # input is the features where features = [grayscale, action]
     output_dim = atari.num_actions      # output is the predicted reward for each action
-    alpha = 1e-7                        # learning rate
+    alpha = 1e-4                        # learning rate
 
     # NN
     model = LinearNN(input_dim=input_dim, hidden_dims=hidden_dims, output_dim=output_dim).to(device)
     for module in model.weights:
-        module.weight.data.fill_(0)
-        module.bias.data.fill_(0)
+        module.weight.data.normal_(0.0, 0.01)
+        module.bias.data.normal_(0.0, 0.01)
         
     optimizer = optim.SGD(model.parameters(), lr=alpha)
     model.zero_grad()
@@ -198,6 +198,7 @@ def main():
                 # start from most current state in trajectory and loop backwards
                 while i >= 0:
                     x_i = trajectory[i]
+                    action_i = int(x_i[-3])
                     
                     # time interval that the state occurred
                     t_i_state_start = x_i[-2]
@@ -212,19 +213,19 @@ def main():
                             # calculate w from the Deep TAMER paper where w = weight applied to loss function
                             # assume f_delay has a uniform distribution over the feedback time interval [t^f - 4, t^f - 0.2] where t^f = time of feedback 
                             t_overlap = min(t_i_state_end,t_feed_end) - max(t_i_state_start,t_feed_start)
-                            weight = t_overlap / (4-0.2)
+                            weight = t_overlap / (2-0.2)
 
                             # train NN
                             reward = model(x_i[:-2])                    # forward propagation
-                            loss = weight*(h - reward[action]).pow(2)   # loss
+                            loss = weight*(h - reward[action_i]).pow(2)   # loss
                             model.zero_grad()                           # zero gradients
                             loss.backward()                             # compute gradients
                             optimizer.step()                            # SGD
                             # print debug information
                             if DEBUG:
-                                print("action:", int(action), ACTIONS[int(action)])
+                                print("action:", int(action_i), ACTIONS[int(action_i)])
                                 print("reward:", reward.tolist())
-                                print("reward[action]:", float(reward[int(action)]))
+                                print("reward[action]:", float(reward[int(action_i)]))
                                 print("feedback:", float(h))
                                 print("loss:", float(loss))
 
