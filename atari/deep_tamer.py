@@ -136,6 +136,9 @@ def main():
 
     # NN
     model = LinearNN(input_dim=input_dim, hidden_dims=hidden_dims, output_dim=output_dim).to(device)
+    for module in model.weights:
+        module.weight.data.fill_(0)
+        module.bias.data.fill_(0)
     optimizer = optim.SGD(model.parameters(), lr=alpha)
     model.zero_grad()
 
