@@ -139,10 +139,11 @@ def main():
     optimizer = optim.SGD(model.parameters(), lr=alpha)
     model.zero_grad()
 
-    episodes = 5            # number of episodes (i.e. full games) to play
+    total_steps = 500
+    curr_step = 0
     feedback_buffer = []    # feedback replay buffer D from the Deep TAMER paper where D = {(x,y,w)} (currently not used)
     kill = False            # boolean indicating whether or not to stop all training
-    for e in range(episodes):
+    while curr_step < total_steps:
         if kill: break                      # stop all episodes
         atari.env.reset()                   # reset environment
         features = torch.zeros(input_dim)   # initialize features
@@ -230,6 +231,9 @@ def main():
             trajectory.append(x)            # add state x to trajectory where x = [observations, action, start time, end time]
             t_state_start = t_state_end     # set start of next state as end of current state
             features = x[:-2]               # set features for next state as [observations, action]
+            curr_step += 1
+            if curr_step >= total_steps:
+                done = True
 
     pickle.dump(model, open('atari/models/trained_agent.pkl', 'wb'))    # save model
     key_process.terminate()                                             # kill key tracking process

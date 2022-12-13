@@ -4,7 +4,6 @@ import gym
 import pygame
 from pygame.locals import *
 import sys
-from atariari.benchmark.wrapper import AtariARIWrapper
 
 class AtariEnv:
     def __init__(self, game="BattleZone-v5", render="human", obs="ram"):
