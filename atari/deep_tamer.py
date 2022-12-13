@@ -132,7 +132,7 @@ def main():
     hidden_dims = [16,16,16]               # hidden layers where each value in the list represents the number of nodes in each layer
     input_dim = atari.num_obs + 1  # input is the features where features = [grayscale, action]
     output_dim = atari.num_actions      # output is the predicted reward for each action
-    alpha = 1e-4                        # learning rate
+    alpha = 5e-4                        # learning rate
 
     # NN
     model = LinearNN(input_dim=input_dim, hidden_dims=hidden_dims, output_dim=output_dim).to(device)
@@ -158,18 +158,29 @@ def main():
         done = False            # boolean indicating whether or not the game is done
         t_start = time()        # start time of episode
         t_state_start = 0 # current state start time
-
+        game_state = 0
         while not done:
             # take an action based on reward model
             action = atari.choose_action(features, model)
-            curr_state, _, terminated, truncated, _ = atari.env.step(action)
+            prev_action = action
+            if game_state == 2:
+                action = 0
+            observation, _, terminated, truncated, _ = atari.env.step(action)
+
+            if game_state == 0 and action == 1:
+                game_state = 1
+                throw_timer = time()
+            elif game_state == 1 and (action == 2 or action ==3):
+                game_state = 2
+            elif (game_state == 1 or game_state == 2) and time()-throw_timer > 7:
+                game_state = 0
 
             done = terminated or truncated  # whether or not the episode has finished
             
             t_state_end = time() - t_start    # current state end time (and next state start time)
 
             # state x from the Deep TAMER paper where x = [observations, action, start time, end time]
-            curr_state = torch.Tensor(curr_state)[None,:,:]
+            curr_state = torch.Tensor(curr_state)
             state = atari.get_state_features(prev_state, curr_state)
             x = torch.Tensor(state.tolist() + [action] + [t_state_start, t_state_end])
             # remove all feedback y in the queue (y from Deep TAMER paper where y = (reward,time))
