@@ -109,11 +109,12 @@ def main():
     with open('atari/ram_annotations.json') as f:
             ram_annotations = json.load(f)
     feature_indices = []
-    for k in ram_annotations[game.lower().split("-")[0]]:
-        if isinstance(ram_annotations[game.lower().split("-")[0]][k], list):
-            feature_indices += ram_annotations[game.lower().split("-")[0]][k]
+    game_key = game.lower().split("-")[0]
+    for k in ram_annotations[game_key]:
+        if isinstance(ram_annotations[game_key][k], list):
+            feature_indices += ram_annotations[game_key][k]
         else:
-            feature_indices.append(ram_annotations[game.lower().split("-")[0]][k])
+            feature_indices.append(ram_annotations[game_key][k])
 
     key_queue = Queue() # queue containing y based on key presses (y from Deep TAMER paper where y = (reward,time))
 
@@ -139,7 +140,7 @@ def main():
     optimizer = optim.SGD(model.parameters(), lr=alpha)
     model.zero_grad()
 
-    total_steps = 500
+    total_steps = 10001
     curr_step = 0
     feedback_buffer = []    # feedback replay buffer D from the Deep TAMER paper where D = {(x,y,w)} (currently not used)
     kill = False            # boolean indicating whether or not to stop all training
@@ -153,17 +154,34 @@ def main():
         t_start = time()        # start time of episode
         t_state_start = t_start # current state start time
 
+        # 0 = ball not thrown
+        # 1 = ball thrown
+        # 2 = trajectory moved
+        game_state = 0
         while not done:
             # take an action based on reward model
             action = atari.choose_action(features, model)
+            if game_state == 1 and action == 1:
+                action = 0
+            elif game_state == 2:
+                action = 0
             observation, _, terminated, truncated, _ = atari.env.step(action)
+
+            if observation[30] <= 15:
+                game_state = 0
+            elif observation[30] > 15:
+                if game_state == 0:
+                    game_state = 1
+                if action == 2 or action == 3:
+                    game_state = 2
 
             done = terminated or truncated  # whether or not the episode has finished
             
             t_state_end = time()    # current state end time (and next state start time)
 
             # state x from the Deep TAMER paper where x = [observations, action, start time, end time]
-            x = torch.Tensor(np.array(observation)[feature_indices].tolist() + [action] + [t_state_start-t_start, t_state_end-t_start])
+            observation = np.array(observation)[feature_indices].tolist()
+            x = torch.Tensor(observation + [action] + [t_state_start-t_start, t_state_end-t_start])
 
             # remove all feedback y in the queue (y from Deep TAMER paper where y = (reward,time))
             while key_queue.qsize():
@@ -214,7 +232,7 @@ def main():
                             loss.backward()                             # compute gradients
                             optimizer.step()                            # SGD
                             # print debug information
-                            if DEBUG:
+                            if DEBUG and action != 0:
                                 print("action:", int(action), ACTIONS[int(action)])
                                 print("reward:", reward.tolist())
                                 print("reward[action]:", float(reward[int(action)]))
@@ -231,6 +249,12 @@ def main():
             trajectory.append(x)            # add state x to trajectory where x = [observations, action, start time, end time]
             t_state_start = t_state_end     # set start of next state as end of current state
             features = x[:-2]               # set features for next state as [observations, action]
+
+            # evaluate model
+            # if curr_step%500 == 0:
+            #     print("Evaluating for time " + str(curr_step))
+            #     agent_reward = evaluate(model, game)
+            #     print("Done evaluating, continuing training")
             curr_step += 1
             if curr_step >= total_steps:
                 done = True
@@ -238,8 +262,48 @@ def main():
     pickle.dump(model, open('atari/models/trained_agent.pkl', 'wb'))    # save model
     key_process.terminate()                                             # kill key tracking process
     key_process.join()
+
+
+
+def evaluate(model, game):
+    atari = AtariEnv(game=game, render=None)
+    with open('atari/ram_annotations.json') as f:
+            ram_annotations = json.load(f)
+    feature_indices = []
+    game_key = game.lower().split("-")[0]
+    for k in ram_annotations[game_key]:
+        if isinstance(ram_annotations[game_key][k], list):
+            feature_indices += ram_annotations[game_key][k]
+        else:
+            feature_indices.append(ram_annotations[game_key][k])
     
-        
+    input_dim = len(feature_indices) + 1
+    features = torch.zeros(input_dim)
+
+    episodes = 10
+    episode_reward = np.zeros((episodes))
+    for e in range(episodes):
+        atari.env.reset()
+        done = False
+        start_time = time()
+        while not done:
+            # take a random action
+            action = atari.choose_action(features, model)
+            observation, reward, terminated, truncated, info = atari.env.step(action)
+            observation = np.array(observation)[feature_indices].tolist()
+            features = torch.Tensor(observation + [action])
+
+            # add the reward for taking the action
+            episode_reward[e] += reward
+            
+            # end game
+            done = terminated or truncated
+
+            if time() - start_time > 5:
+                print("     agent did not finish episode")
+                done = True
+    
+    return np.mean(episode_reward)
 
 if __name__ == "__main__":
     main()

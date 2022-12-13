@@ -40,37 +40,26 @@ class AtariEnv:
 # when this file is called, an atari game is simulated 
 def main():
     # instantiate an atari game environment
-    atari = AtariEnv("BattleZone-v5")
+    atari = AtariEnv("Bowling-v5")
     atari.env.reset(seed=0)
 
     # take actions in the game where each iteration in the loop represents one action
     episode_reward = 0  # total reward for the episode
-    for i in range(1000):
-        test_sequence = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-                        1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-                        2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
-                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-                        3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
-                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-                        4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,
-                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-                        5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,
-                        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,]
-        for action in test_sequence:
-            observation, reward, terminated, truncated, info = atari.env.step(action)
-        return
+    ball_x = []
+    trajectory = [0 for _ in range(20)] + [1 for _ in range(20)] + [0 for _ in range(100)]
+    for action in trajectory:
         # take a random action
-        action = atari.env.action_space.sample()
+        # action = atari.env.action_space.sample()
         action = 1
         observation, reward, terminated, truncated, info = atari.env.step(action)
 
         # print information about the game
-        if i%50 == 0:
-            print("-------------------- Iteration " + str(i) + " --------------------")
-            print("Observation:\n", observation)
-            print("Information:", info, "\n")
+        # if i%50 == 0:
+        #     print("-------------------- Iteration " + str(i) + " --------------------")
+        #     print("Observation:\n", observation)
+        #     print("Ball x,y:", observation[30],observation[41])
+        #     print("Information:", info, "\n")
+        ball_x.append(observation[30])
         
         # add the reward for taking the action
         episode_reward += reward
@@ -81,6 +70,7 @@ def main():
     
     # print reward of the episode
     print('Reward: %s' % episode_reward)
+    print(ball_x)
 
 if __name__ == '__main__':
     main()
