@@ -1,3 +1,4 @@
 *.pyc
 atari/__pycache__/
 atari/data/
+code_submission/
