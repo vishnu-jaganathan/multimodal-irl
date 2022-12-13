@@ -134,16 +134,18 @@ def main():
     # NN Hyperparameters
     hidden_dims = [16,16]               # hidden layers where each value in the list represents the number of nodes in each layer
     input_dim = len(feature_indices) + 1  # input is the features where features=[observations from OpenAI RAM, action]
-    output_dim = atari.num_actions      # output is the predicted reward for each action
+    output_dim = 1      # output is the predicted reward for each action
     alpha = 1e-4                        # learning rate
 
     # NN
-    model = LinearNN(input_dim=input_dim, hidden_dims=hidden_dims, output_dim=output_dim).to(device)
-    for module in model.weights:
-        module.weight.data.normal_(0.0,0.1)
-        module.bias.data.normal_(0.0,0.1)
-    optimizer = optim.SGD(model.parameters(), lr=alpha)
-    model.zero_grad()
+    models = []
+    optimizers = []
+    for _ in range(atari.num_actions):
+        m = LinearNN(input_dim=input_dim, hidden_dims=hidden_dims, output_dim=output_dim).to(device)
+        o = optim.SGD(m.parameters(), lr=alpha)
+        m.zero_grad()
+        models.append(m)
+        optimizers.append(o)
     
 
     agent_reward = []
@@ -168,10 +170,9 @@ def main():
         game_state = 0
         while not done:
             # take an action based on reward model
-            action = atari.choose_action(features, model)
+            action = atari.choose_action(features, models)
             if game_state == 2:
                 action = save_action
-                print(game_state,action)
             observation, _, terminated, truncated, _ = atari.env.step(action)
 
             if observation[30] <= 15:
@@ -206,7 +207,7 @@ def main():
 
                 # feedback time interval [t^f - 4, t^f - 0.2] where t^f = time of feedback
                 t_feed -= t_start
-                t_feed_start = t_feed - 4
+                t_feed_start = t_feed - 2
                 t_feed_end = t_feed - 0.2
 
                 # assign feedback y = (reward,time) to all states x in the feedback time interval [t^f - 4, t^f - 0.2] where t^f = time of feedback
@@ -232,19 +233,22 @@ def main():
                             # calculate w from the Deep TAMER paper where w = weight applied to loss function
                             # assume f_delay has a uniform distribution over the feedback time interval [t^f - 4, t^f - 0.2] where t^f = time of feedback 
                             t_overlap = min(t_i_state_end,t_feed_end) - max(t_i_state_start,t_feed_start)
-                            weight = t_overlap / (4-0.2)
+                            weight = t_overlap / (2-0.2)
 
                             # train NN
-                            reward = model(x_i[:-2])                    # forward propagation
-                            loss = weight*(h - reward[action_i]).pow(2)   # loss
-                            model.zero_grad()                           # zero gradients
+                            action_rewards = []
+                            for m in models:
+                                action_rewards.append(float(m(x_i[:-2])))
+                            reward = models[action_i](x_i[:-2])                    # forward propagation
+                            loss = weight*(h - reward).pow(2)   # loss
+                            models[action_i].zero_grad()                           # zero gradients
                             loss.backward()                             # compute gradients
-                            optimizer.step()                            # SGD
+                            optimizers[action_i].step()                            # SGD
                             # print debug information
-                            if DEBUG and action_i != 0:
+                            if DEBUG:
                                 print("action:", int(action_i), ACTIONS[int(action_i)])
-                                print("reward:", reward.tolist())
-                                print("reward[action]:", float(reward[int(action_i)]))
+                                print("action reward:", action_rewards)
+                                print("reward:", float(reward))
                                 print("feedback:", float(h))
                                 print("loss:", float(loss))
 
@@ -262,7 +266,7 @@ def main():
             # evaluate model
             if curr_step%500 == 0:
                 print("Evaluating for time " + str(curr_step))
-                agent_reward.append(evaluate(model, game))
+                agent_reward.append(evaluate(models, game))
                 steps.append(curr_step)
                 print("Done evaluating, continuing training")
 
@@ -270,7 +274,7 @@ def main():
             if curr_step >= total_steps:
                 done = True
 
-    pickle.dump(model, open('atari/models/trained_agent.pkl', 'wb'))    # save model
+    # pickle.dump(model, open('atari/models/trained_agent.pkl', 'wb'))    # save model
     key_process.terminate()                                             # kill key tracking process
     key_process.join()
 
@@ -279,7 +283,7 @@ def main():
 
 
 
-def evaluate(model, game):
+def evaluate(models, game):
     atari = AtariEnv(game=game, render=None)
     with open('atari/ram_annotations.json') as f:
             ram_annotations = json.load(f)
@@ -302,7 +306,7 @@ def evaluate(model, game):
         start_time = time()
         while not done:
             # take a random action
-            action = atari.choose_action(features, model)
+            action = atari.choose_action(features, models)
             observation, reward, terminated, truncated, info = atari.env.step(action)
             observation = np.array(observation)[feature_indices].tolist()
             features = torch.Tensor(observation + [action])

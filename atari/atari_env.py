@@ -23,8 +23,11 @@ class AtariEnv:
     Outputs:
         action      int representing the action to take
     '''
-    def choose_action(self, features, model, debug=False):
-        action_rewards = model(features)        # prediction of the rewards for each action
+    def choose_action(self, features, models, debug=False):
+        action_rewards = []
+        for m in models:
+            action_rewards.append(float(m(features)))        # prediction of the rewards for each action
+        action_rewards = torch.Tensor(action_rewards)
         action = torch.argmax(action_rewards)   # action returned is the index of the maximum reward
 
         # print debug information
