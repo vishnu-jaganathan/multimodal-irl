@@ -4,6 +4,7 @@ import cv2
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
+import time
 
 def record_video(savename):
 	
@@ -19,11 +20,13 @@ def record_video(savename):
 	fps_in_saved_video = 2
 
 	out = cv2.VideoWriter(savename + '.avi', cv2.VideoWriter_fourcc('M','J','P','G'), fps_in_saved_video, (frame_width, frame_height))
+	out2 = cv2.VideoWriter(savename + '-full' + '.avi', cv2.VideoWriter_fourcc('M','J','P','G'), 60, (frame_width, frame_height))
 
 	frame_count = 1
 	while True:
 		ret, frame = vid.read()
 		if ret == True:
+			out2.write(frame)
 			if frame_count % 30 == 0: # save an image every 30 frames
 				out.write(frame)
 			frame_count += 1
@@ -37,6 +40,7 @@ def record_video(savename):
 
 	vid.release()
 	out.release()
+	out2.release()
 	cv2.destroyAllWindows()
 
 def process_emotions(filename):
@@ -46,7 +50,9 @@ def process_emotions(filename):
 	# The Analyze() function will run analysis on every frame of the input video. 
 	# It will create a rectangular box around every image and show the emotion values next to that.
 	# Finally, the method will publish a new video that will have a box around the face of the human with live emotion values.
+	start = time.time()
 	processing_data = input_video.analyze(emotion_detector, display=False)
+	print("Time elapsed for analysis:", time.time() - start)
 
 	# We will now convert the analysed information into a dataframe.
 	# This will help us import the data as a .CSV file to perform analysis over it later
@@ -75,7 +81,9 @@ def process_emotions(filename):
 	score_comparisons['Emotion Value from the Video'] = emotions_values
 	return score_comparisons
 
-name = "output"
+name = "exp"
 record_video(name)
-scores = process_emotions(name)
-print(scores)
+score_base = process_emotions(name)
+print(score_base)
+score_full = process_emotions(name + "-full")
+print(score_full)
