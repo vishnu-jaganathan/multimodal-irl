@@ -6,6 +6,8 @@ import pickle
 import json
 import sys
 from time import time,sleep
+import matplotlib.pyplot as plt
+import pandas as pd
 
 from atari_env import AtariEnv
 from nn_init import LinearNN
@@ -130,19 +132,22 @@ def main():
 
 
     # NN Hyperparameters
-    hidden_dims = [16,16,16]               # hidden layers where each value in the list represents the number of nodes in each layer
+    hidden_dims = [16,16]               # hidden layers where each value in the list represents the number of nodes in each layer
     input_dim = len(feature_indices) + 1  # input is the features where features=[observations from OpenAI RAM, action]
     output_dim = atari.num_actions      # output is the predicted reward for each action
-    alpha = 1e-3                        # learning rate
+    alpha = 1e-4                        # learning rate
 
     # NN
     model = LinearNN(input_dim=input_dim, hidden_dims=hidden_dims, output_dim=output_dim).to(device)
     for module in model.weights:
-        module.weight.data.fill_(0)
-        module.bias.data.fill_(0)
+        module.weight.data.normal_(0.0,0.1)
+        module.bias.data.normal_(0.0,0.1)
     optimizer = optim.SGD(model.parameters(), lr=alpha)
     model.zero_grad()
+    
 
+    agent_reward = []
+    steps = []
     total_steps = 10001
     curr_step = 0
     feedback_buffer = []    # feedback replay buffer D from the Deep TAMER paper where D = {(x,y,w)} (currently not used)
@@ -157,26 +162,26 @@ def main():
         t_start = time()        # start time of episode
         t_state_start = t_start # current state start time
 
-        # # 0 = ball not thrown
-        # # 1 = ball thrown
-        # # 2 = trajectory moved
-        # game_state = 0
+        # 0 = ball not thrown
+        # 1 = ball thrown
+        # 2 = trajectory moved
+        game_state = 0
         while not done:
             # take an action based on reward model
             action = atari.choose_action(features, model)
-            # if game_state == 1 and action == 1:
-            #     action = 0
-            # elif game_state == 2:
-            #     action = 0
+            if game_state == 2:
+                action = save_action
+                print(game_state,action)
             observation, _, terminated, truncated, _ = atari.env.step(action)
 
-            # if observation[30] <= 15:
-            #     game_state = 0
-            # elif observation[30] > 15:
-            #     if game_state == 0:
-            #         game_state = 1
-            #     if action == 2 or action == 3:
-            #         game_state = 2
+            if observation[30] <= 15:
+                game_state = 0
+            elif observation[30] > 20:
+                if game_state == 0:
+                    game_state = 1
+                if action == 2 or action == 3:
+                    save_action = action
+                    game_state = 2
 
             done = terminated or truncated  # whether or not the episode has finished
             
@@ -236,7 +241,7 @@ def main():
                             loss.backward()                             # compute gradients
                             optimizer.step()                            # SGD
                             # print debug information
-                            if DEBUG and x_i[-3] != 0:
+                            if DEBUG and action_i != 0:
                                 print("action:", int(action_i), ACTIONS[int(action_i)])
                                 print("reward:", reward.tolist())
                                 print("reward[action]:", float(reward[int(action_i)]))
@@ -255,10 +260,12 @@ def main():
             features = x[:-2]               # set features for next state as [observations, action]
 
             # evaluate model
-            # if curr_step%500 == 0:
-            #     print("Evaluating for time " + str(curr_step))
-            #     agent_reward = evaluate(model, game)
-            #     print("Done evaluating, continuing training")
+            if curr_step%500 == 0:
+                print("Evaluating for time " + str(curr_step))
+                agent_reward.append(evaluate(model, game))
+                steps.append(curr_step)
+                print("Done evaluating, continuing training")
+
             curr_step += 1
             if curr_step >= total_steps:
                 done = True
@@ -266,6 +273,9 @@ def main():
     pickle.dump(model, open('atari/models/trained_agent.pkl', 'wb'))    # save model
     key_process.terminate()                                             # kill key tracking process
     key_process.join()
+
+    perf_data = pd.DataFrame({'time_steps': steps,'reward': agent_reward})
+    perf_data.to_csv('deep_tamer_model_list.csv')
 
 
 
@@ -303,7 +313,7 @@ def evaluate(model, game):
             # end game
             done = terminated or truncated
 
-            if time() - start_time > 5:
+            if time() - start_time > 2:
                 print("     agent did not finish episode")
                 done = True
     
